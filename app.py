@@ -157,7 +157,6 @@ import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime
 from dotenv import load_dotenv
-import os
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})  # Permitir solicitudes desde cualquier origen
@@ -168,7 +167,7 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5
 
 # Función para conectar a la base de datos
 def get_db_connection():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
     return conn
 
 # Inicializar la base de datos
