@@ -146,10 +146,15 @@
 
 
 
-from flask import Flask, request, jsonify
+# from flask import Flask, request, jsonify
+# from flask_cors import CORS
+# import psycopg2
+# from psycopg2.extras import RealDictCursor
 from flask_cors import CORS
+from flask import Flask, request, jsonify, g
+import os
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import DictCursor
 from datetime import datetime
 from dotenv import load_dotenv
 import os
@@ -199,51 +204,115 @@ def migrate_db():
     conn.close()
 
 # Para agregar nueva persona
-@app.route('/personas', methods=['POST'])
+# @app.route('/personas', methods=['POST'])
+# def agregar_persona():
+#     try:
+#         data = request.get_json()
+#         dni = data.get('dni')
+#         nombre = data.get('nombre')
+#         apellido = data.get('apellido')
+#         mutual = data.get('mutual')
+#         atencion = data.get('atencion')
+#         hora_entrada = datetime.now().isoformat()
+
+#         if not dni or not nombre or not apellido:
+#             return jsonify({"error": "DNI, nombre y apellido son obligatorios"}), 400
+
+#         conn = get_db_connection()
+#         cursor = conn.cursor()
+
+#         cursor.execute('SELECT id FROM personas WHERE dni = %s', (dni,))
+#         if cursor.fetchone():
+#             cursor.close()
+#             conn.close()
+#             return jsonify({"error": "El DNI ya está registrado"}), 400
+
+#         cursor.execute(
+#             'INSERT INTO personas (dni, nombre, apellido, hora_entrada, mutual, atencion) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id',
+#             (dni, nombre, apellido, hora_entrada, mutual, atencion)
+#         )
+#         new_id = cursor.fetchone()['id']
+#         conn.commit()
+#         cursor.close()
+#         conn.close()
+
+#         return jsonify({
+#             "id": new_id,
+#             "dni": dni,
+#             "nombre": nombre,
+#             "apellido": apellido,
+#             "hora_entrada": hora_entrada,
+#             "mutual": mutual,
+#             "atencion": atencion,
+#             "terminado": 0
+#         }), 201
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+@app.route('/personas', methods=['GET', 'POST'])
 def agregar_persona():
-    try:
-        data = request.get_json()
-        dni = data.get('dni')
-        nombre = data.get('nombre')
-        apellido = data.get('apellido')
-        mutual = data.get('mutual')
-        atencion = data.get('atencion')
-        hora_entrada = datetime.now().isoformat()
+    if request.method == 'POST':
+        # Tu lógica para agregar una persona
+        try:
+            data = request.get_json()
+            dni = data.get('dni')
+            nombre = data.get('nombre')
+            apellido = data.get('apellido')
+            mutual = data.get('mutual')
+            atencion = data.get('atencion')
+            hora_entrada = datetime.now().isoformat()
 
-        if not dni or not nombre or not apellido:
-            return jsonify({"error": "DNI, nombre y apellido son obligatorios"}), 400
+            if not dni or not nombre or not apellido:
+                return jsonify({"error": "DNI, nombre y apellido son obligatorios"}), 400
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+            conn = get_db_connection()
+            # Usa DictCursor aquí también
+            cursor = conn.cursor(cursor_factory=DictCursor) 
+            
+            cursor.execute('SELECT id FROM personas WHERE dni = %s', (dni,))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "El DNI ya está registrado"}), 400
 
-        cursor.execute('SELECT id FROM personas WHERE dni = %s', (dni,))
-        if cursor.fetchone():
+            cursor.execute(
+                'INSERT INTO personas (dni, nombre, apellido, hora_entrada, mutual, atencion, terminado) VALUES (%s, %s, %s, %s, %s, %s, 0) RETURNING id',
+                (dni, nombre, apellido, hora_entrada, mutual, atencion)
+            )
+            new_person_id = cursor.fetchone()['id']
+            conn.commit()
             cursor.close()
             conn.close()
-            return jsonify({"error": "El DNI ya está registrado"}), 400
 
-        cursor.execute(
-            'INSERT INTO personas (dni, nombre, apellido, hora_entrada, mutual, atencion) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id',
-            (dni, nombre, apellido, hora_entrada, mutual, atencion)
-        )
-        new_id = cursor.fetchone()['id']
-        conn.commit()
-        cursor.close()
-        conn.close()
+            return jsonify({
+                "id": new_person_id,
+                "dni": dni,
+                "nombre": nombre,
+                "apellido": apellido,
+                "hora_entrada": hora_entrada,
+                "mutual": mutual,
+                "atencion": atencion,
+                "terminado": 0
+            }), 201
 
-        return jsonify({
-            "id": new_id,
-            "dni": dni,
-            "nombre": nombre,
-            "apellido": apellido,
-            "hora_entrada": hora_entrada,
-            "mutual": mutual,
-            "atencion": atencion,
-            "terminado": 0
-        }), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    elif request.method == 'GET':
+        # Tu lógica para obtener todas las personas
+        try:
+            conn = get_db_connection()
+            # Usa DictCursor para obtener un diccionario de cada fila
+            cursor = conn.cursor(cursor_factory=DictCursor)
+            cursor.execute('SELECT * FROM personas ORDER BY hora_entrada DESC')
+            personas = cursor.fetchall()
+            conn.close()
+            
+            return jsonify(personas)
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 # Para obtener todas las personas
 @app.route('/personas', methods=['GET'])
