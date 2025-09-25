@@ -1,155 +1,3 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import sqlite3
-# from datetime import datetime
-# from dotenv import load_dotenv
-# import os
-
-# app = Flask(__name__)
-# CORS(app, resources={r"/*": {"origins": "*"}})  # Permitir solicitudes desde cualquier origen
-
-# # Cargar variables de entorno
-# load_dotenv()
-# DATABASE = os.getenv('DATABASE_URL', 'database.db')
-
-# # Función para conectar a la base de datos
-# def get_db_connection():
-#     conn = sqlite3.connect(DATABASE)
-#     conn.row_factory = sqlite3.Row
-#     return conn
-
-# # Inicializar la base de datos
-# def init_db():
-#     conn = get_db_connection()
-#     conn.execute('''
-#         CREATE TABLE IF NOT EXISTS personas (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             dni TEXT NOT NULL UNIQUE,
-#             nombre TEXT NOT NULL,
-#             apellido TEXT NOT NULL,
-#             hora_entrada TEXT NOT NULL,
-#             mutual TEXT,
-#             atencion TEXT,
-#             terminado INTEGER DEFAULT 0
-#         )
-#     ''')
-#     conn.commit()
-#     conn.close()
-
-# # Migrar la base de datos para añadir el campo 'atencion' si no existe
-# def migrate_db():
-#     conn = get_db_connection()
-#     cursor = conn.cursor()
-#     cursor.execute("PRAGMA table_info(personas)")
-#     columns = [col[1] for col in cursor.fetchall()]
-#     if 'atencion' not in columns:
-#         cursor.execute('ALTER TABLE personas ADD COLUMN atencion TEXT')
-#         conn.commit()
-#     conn.close()
-
-# # Para agregar nueva persona
-# @app.route('/personas', methods=['POST'])
-# def agregar_persona():
-#     try:
-#         data = request.get_json()
-#         dni = data.get('dni')
-#         nombre = data.get('nombre')
-#         apellido = data.get('apellido')
-#         mutual = data.get('mutual')
-#         atencion = data.get('atencion')
-#         hora_entrada = datetime.now().isoformat()
-
-#         if not dni or not nombre or not apellido:
-#             return jsonify({"error": "DNI, nombre y apellido son obligatorios"}), 400
-
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-
-#         cursor.execute('SELECT id FROM personas WHERE dni = ?', (dni,))
-#         if cursor.fetchone():
-#             conn.close()
-#             return jsonify({"error": "El DNI ya está registrado"}), 400
-
-#         cursor.execute(
-#             'INSERT INTO personas (dni, nombre, apellido, hora_entrada, mutual, atencion) VALUES (?, ?, ?, ?, ?, ?)',
-#             (dni, nombre, apellido, hora_entrada, mutual, atencion)
-#         )
-#         conn.commit()
-#         new_id = cursor.lastrowid
-#         conn.close()
-
-#         return jsonify({
-#             "id": new_id,
-#             "dni": dni,
-#             "nombre": nombre,
-#             "apellido": apellido,
-#             "hora_entrada": hora_entrada,
-#             "mutual": mutual,
-#             "atencion": atencion,
-#             "terminado": 0
-#         }), 201
-
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# # Para obtener todas las personas
-# @app.route('/personas', methods=['GET'])
-# def obtener_personas():
-#     try:
-#         conn = get_db_connection()
-#         personas = conn.execute('SELECT * FROM personas').fetchall()
-#         conn.close()
-#         return jsonify([dict(persona) for persona in personas])
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# # Para marcar como "terminado"
-# @app.route('/personas/<int:id>/terminar', methods=['PUT'])
-# def marcar_terminado(id):
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         cursor.execute('SELECT id FROM personas WHERE id = ?', (id,))
-#         if not cursor.fetchone():
-#             conn.close()
-#             return jsonify({"error": "Persona no encontrada"}), 404
-
-#         cursor.execute('UPDATE personas SET terminado = 1 WHERE id = ?', (id,))
-#         conn.commit()
-#         conn.close()
-#         return jsonify({"message": "Persona marcada como terminado"})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# # Para eliminar una persona
-# @app.route('/personas/<int:id>', methods=['DELETE'])
-# def eliminar_persona(id):
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         cursor.execute('SELECT id FROM personas WHERE id = ?', (id,))
-#         if not cursor.fetchone():
-#             conn.close()
-#             return jsonify({"error": "Persona no encontrada"}), 404
-
-#         cursor.execute('DELETE FROM personas WHERE id = ?', (id,))
-#         conn.commit()
-#         conn.close()
-#         return jsonify({"message": "Persona eliminada correctamente"})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# if __name__ == '__main__':
-#     init_db()
-#     migrate_db()
-#     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))  # Usar puerto dinámico
-
-
-
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import psycopg2
-# from psycopg2.extras import RealDictCursor
 from flask_cors import CORS
 from flask import Flask, request, jsonify, g
 import os
@@ -163,12 +11,21 @@ CORS(app, resources={r"/*": {"origins": "*"}})  # Permitir solicitudes desde cua
 
 # Cargar variables de entorno
 load_dotenv()
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/database')
+DATABASE_URL = os.getenv('DATABASE_URL')
 
 # Función para conectar a la base de datos
 def get_db_connection():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
-    return conn
+    if 'db' not in g:
+        if not DATABASE_URL:
+            raise ValueError("No DATABASE_URL set for Flask application")
+        g.db = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
+    return g.db
+
+@app.teardown_appcontext
+def close_db(e=None):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 # Inicializar la base de datos
 def init_db():
